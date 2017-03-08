@@ -1,0 +1,7 @@
+[package]
+name = "mpd_client"
+version = "0.1.0"
+authors = ["kokoax <yomo4808@gmail.com>"]
+
+[dependencies]
+
