@@ -4,4 +4,5 @@ version = "0.1.0"
 authors = ["kokoax <yomo4808@gmail.com>"]
 
 [dependencies]
+gtk = { git = "https://github.com/gtk-rs/gtk.git" }
 
