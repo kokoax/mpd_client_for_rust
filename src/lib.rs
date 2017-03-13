@@ -1,2 +1,1 @@
-mod MPD_Query;
-
+mod mpd;
