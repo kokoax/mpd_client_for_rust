@@ -23,38 +23,8 @@ pub mod mpd_query {
         return mpd;
     }
 
-    // example. convert of "song: aaa\npath: /bbb/ccc\n" to {"song": "aaa", "path": "/bbb/ccc"}
-    fn string_to_map(data: String) -> std::collections::HashMap<String, String> {
-        let split_tmp: Vec<&str> = data.split("\n").collect();
-        let mut split_list: Vec<Vec<&str>> = split_tmp
-            .into_iter()
-            .map(|x| x.split(": ").collect())
-            .collect();
-
-        // mpd send "OK" receive's last, that throw to dust.
-        let _ = split_list.pop();
-        let _ = split_list.pop();
-        let mut map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
-
-        for i in 0..split_list.len() {
-            map.insert(split_list[i][0].to_string(), split_list[i][1].to_string());
-        }
-
-        return map.clone();
-    }
-
-    // get currentsong infomation
-    pub fn currentsong(mpd: &mut TcpStream) -> HashMap<String, String> {
-        let mut buf: String = String::new();
-
-        let _ = mpd.write(b"currentsong\n");
-        let _ = mpd.read_to_string(&mut buf);
-
-        return string_to_map(buf);
-    }
-
-    // ls' buffer(String) to Vec<HashMap>
-    fn ls_to_vec(buf: String) -> Vec<HashMap<String, String>> {
+    // MPD receive data(String) to vector<hashmap>
+    fn mpdbuf_to_vec(buf: String) -> Vec<HashMap<String, String>> {
         let mut ret: Vec<HashMap<String, String>> = Vec::<HashMap<String, String>>::new();
         let mut ls: Vec<&str> = buf.split("\n").collect();
         ls.pop();  // "OK\n".split("\n") -> ["OK", ""].pop()
@@ -78,7 +48,36 @@ pub mod mpd_query {
                 ret.push(ls_data.clone());
             }
         }
+        ret.remove(0);
         return ret;
+    }
+
+    // get currentsong infomation
+    pub fn currentsong(mpd: &mut TcpStream) -> HashMap<String, String> {
+        let mut buf: String = String::new();
+
+        let _ = mpd.write(b"currentsong\n");
+        let _ = mpd.read_to_string(&mut buf);
+
+        return mpdbuf_to_vec(buf).pop().unwrap();
+    }
+
+    pub fn playlistinfo(mpd: &mut TcpStream, songpos: &str) -> Vec<HashMap<String, String>> {
+        let mut buf: String = String::new();
+
+        let _ = mpd.write(format!("{} {}\n", "playlistinfo", songpos).as_bytes());
+        let _ = mpd.read_to_string(&mut buf);
+
+        return mpdbuf_to_vec(buf);
+    }
+
+    pub fn playlist(mpd: &mut TcpStream) -> Vec<HashMap<String, String>> {
+        let mut buf: String = String::new();
+
+        let _ = mpd.write(b"playlist\n");
+        let _ = mpd.read_to_string(&mut buf);
+
+        return mpdbuf_to_vec(buf);
     }
 
     // get only directory from ls
@@ -112,8 +111,7 @@ pub mod mpd_query {
         let _ = mpd.write(format!("{} {}\n", "lsinfo", path).as_bytes());
         let _ = mpd.read_to_string(&mut buf);
 
-
-        return ls_to_vec(buf);
+        return mpdbuf_to_vec(buf);
    }
 }
 
