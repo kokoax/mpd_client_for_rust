@@ -31,20 +31,39 @@ fn window_test(){
         Inhibit(false)
     });
 
-    let column_types   = &[gtk::Type::String, gtk::Type::String];
+    let column_types   = [gtk::Type::String, gtk::Type::String];
     let playlist_view  = gtk::TreeView::new();
-    let playlist_store = gtk::ListStore::new(column_types);
+    let playlist_store = gtk::ListStore::new(&column_types);
 
-    let artist_column   = gtk::TreeViewColumn::new();
-    artist_column.set_title("Artist");
+    let title_column_num = 0;
+    let artist_column_num = 0;
     let title_column   = gtk::TreeViewColumn::new();
     title_column.set_title("Title");
+    let artist_column   = gtk::TreeViewColumn::new();
+    artist_column.set_title("Artist");
 
-    playlist_view.append_column(&artist_column);
     playlist_view.append_column(&title_column);
+    playlist_view.append_column(&artist_column);
 
-    playlist_store.set(&playlist_store.append(), &[0 as u32, 0 as u32], &[&"asd", &"dsa"]);
+    // playlist_store.set(&playlist_store.append(), &[0 as u32, 0 as u32], &[&"asd", &"dsa"]);
+    // playlist_store.set(&playlist_store.insert(-1), &[0,1], &[&"asd", &"dsa"]);
+    // let array_of_data = [&"asd".to_value() as &gtk::ToValue, &"dsa".to_value() as &gtk::ToValue];
+    // let array_of_data = [&(("Title").to_value()) as &ToValue, &(("Artist").to_value()) as &ToValue];
+    let iter = playlist_store.insert(-1);
+    playlist_store.set_value(&iter, title_column_num, &"asd".to_value() as &gtk::Value);
+    playlist_store.set_value(&iter, artist_column_num, &"dsa".to_value() as &gtk::Value);
+    let iter = playlist_store.insert(-1);
+    playlist_store.set_value(&iter, title_column_num, &"Sample".to_value() as &gtk::Value);
+    playlist_store.set_value(&iter, artist_column_num, &"Elpmas".to_value() as &gtk::Value);
+
+    // let iter = playlist_store.insert(-1);
+    // playlist_store.set(&iter, &[0,1], &array_of_data);
+    // let iter = playlist_store.insert_with_values(Some(0), &[0,1], &array_of_data);
+    // let iter = playlist_store.insert_with_values(Some(0), &[0,1], &array_of_data);
+    // playlist_store.set(&playlist_store.insert(-1), &[0,1], &[&"asd", &"dsa"]);
+    // playlist_store.set_value(&iter, 1, &"asd".to_value() as &gtk::Value);
     playlist_view.set_model(Some(&playlist_store));
+
 
     window.add(&playlist_view);
 
