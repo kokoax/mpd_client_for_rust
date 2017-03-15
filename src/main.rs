@@ -9,8 +9,8 @@ use mpd::mpd_query;
 use gtk::prelude::*;
 
 fn main() {
-    window_test();
-    // mpd_query_test();
+    // window_test();
+    mpd_query_test();
 }
 
 fn window_test(){
@@ -84,6 +84,7 @@ fn mpd_query_test() {
     let current         = mpd_query::currentsong(&mut mpd);
     let playlist        = mpd_query::playlist(&mut mpd);
     let playlistinfo    = mpd_query::playlistinfo(&mut mpd, "");
+    let list            = mpd_query::list(&mut mpd, "");
 
     for item in ls_song {
         for key in item.keys() {
@@ -132,6 +133,10 @@ fn mpd_query_test() {
 
     for item in playlistinfo {
         println!("Title: {}", item.get("Title").unwrap());
+    }
+
+    for item in list {
+        println!("Album: {}", item);
     }
 }
 
