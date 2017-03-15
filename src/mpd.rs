@@ -62,6 +62,33 @@ pub mod mpd_query {
         return mpdbuf_to_vec(buf).pop().unwrap();
     }
 
+    // get list any types(song, album, artist, etc...)
+    pub fn list(mpd: &mut TcpStream, filter: &str) -> Vec<String> {
+        let mut buf: String = String::new();
+
+        let _ = mpd.write(format!("{} {}\n", "list", filter).as_bytes());
+        let _ = mpd.read_to_string(&mut buf);
+
+        let splited: Vec<&str> = buf.split("\n").collect();
+
+        let mut ret: Vec<String> = splited.into_iter().map(|x| {
+            match x {
+                "OK" => "OK".to_string(),
+                "" => "NL".to_string(),
+                _      => {
+                    println!("{}", x);
+                    let splited: Vec<&str> = x.split(": ").collect();
+                    println!("after");
+                    splited[1].to_string()
+                },
+            }
+        }).collect();
+        ret.remove(0);
+        ret.pop();
+        ret.pop();
+        return ret;
+    }
+
     pub fn playlistinfo(mpd: &mut TcpStream, songpos: &str) -> Vec<HashMap<String, String>> {
         let mut buf: String = String::new();
 
