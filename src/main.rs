@@ -9,8 +9,44 @@ use mpd::mpd_query;
 use gtk::prelude::*;
 
 fn main() {
+<<<<<<< Updated upstream
     window_test();
     // mpd_query_test();
+=======
+    // window_test();
+    menu_bar();
+    // mpd_query_test();
+}
+
+fn to_only_filename(data: &String) -> String {
+    let mut splited: Vec<&str> = data.split("/").collect();
+    return splited.pop().unwrap().to_string() as String;
+}
+
+fn menu_bar() {
+    gtk::init()
+        .expect("Failed to initialize GTK");
+
+    let window = gtk::Window::new(gtk::WindowType::Toplevel);
+
+    window.set_title("mpd_client");
+
+    window.set_border_width(10);
+    window.set_position(gtk::WindowPosition::Center);
+    window.set_default_size(350,70);
+
+    window.connect_delete_event(|_,_| {
+        gtk::main_quit();
+        Inhibit(false)
+    });
+
+    let stack = gtk::Stack::new();
+
+    window.add(&stack);
+
+    window.show_all();
+    gtk::main();
+>>>>>>> Stashed changes
 }
 
 fn window_test(){
@@ -58,7 +94,11 @@ fn window_test(){
     for info in playlistinfo {
         let iter = playlist_store.insert(-1);
         let title = match info.get("Title") {
+<<<<<<< Updated upstream
             None        => info.get("file").unwrap().to_value() as gtk::Value,
+=======
+            None        => to_only_filename(info.get("file").unwrap()).to_value() as gtk::Value,
+>>>>>>> Stashed changes
             Some(title) => title.to_value() as gtk::Value,
         };
         let artist = match info.get("Artist") {
