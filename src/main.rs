@@ -9,18 +9,17 @@ use mpd::mpd_query;
 use gtk::prelude::*;
 
 fn main() {
-    // window_test();
-    mpd_query_test();
+    window_test();
+    // mpd_query_test();
 }
 
 fn window_test(){
     gtk::init()
         .expect("Failed to initialize GTK");
 
-    let mut mpd = mpd_query::get_mpd_socket(Ipv4Addr::new(127,0,0,1), 6600);
     let window = gtk::Window::new(gtk::WindowType::Toplevel);
 
-    window.set_title("First");
+    window.set_title("mpd_client");
 
     window.set_border_width(10);
     window.set_position(gtk::WindowPosition::Center);
@@ -31,41 +30,52 @@ fn window_test(){
         Inhibit(false)
     });
 
+    let mut mpd = mpd_query::get_mpd_socket(Ipv4Addr::new(127,0,0,1), 6600);
+    let playlistinfo    = mpd_query::playlistinfo(&mut mpd, "");
+
     let column_types   = [gtk::Type::String, gtk::Type::String];
     let playlist_view  = gtk::TreeView::new();
     let playlist_store = gtk::ListStore::new(&column_types);
 
-    let title_column_num = 0;
-    let artist_column_num = 0;
+    let title_column_num  = 0;
+    let artist_column_num = 1;
+
     let title_column   = gtk::TreeViewColumn::new();
     title_column.set_title("Title");
+    let title_cell = gtk::CellRendererText::new();
+    title_column.pack_start(&title_cell, true);
+    title_column.add_attribute(&title_cell, "text", title_column_num as i32);
+
     let artist_column   = gtk::TreeViewColumn::new();
     artist_column.set_title("Artist");
+    let artist_cell = gtk::CellRendererText::new();
+    artist_column.pack_start(&artist_cell, true);
+    artist_column.add_attribute(&artist_cell, "text", artist_column_num as i32);
 
     playlist_view.append_column(&title_column);
     playlist_view.append_column(&artist_column);
 
-    // playlist_store.set(&playlist_store.append(), &[0 as u32, 0 as u32], &[&"asd", &"dsa"]);
-    // playlist_store.set(&playlist_store.insert(-1), &[0,1], &[&"asd", &"dsa"]);
-    // let array_of_data = [&"asd".to_value() as &gtk::ToValue, &"dsa".to_value() as &gtk::ToValue];
-    // let array_of_data = [&(("Title").to_value()) as &ToValue, &(("Artist").to_value()) as &ToValue];
-    let iter = playlist_store.insert(-1);
-    playlist_store.set_value(&iter, title_column_num, &"asd".to_value() as &gtk::Value);
-    playlist_store.set_value(&iter, artist_column_num, &"dsa".to_value() as &gtk::Value);
-    let iter = playlist_store.insert(-1);
-    playlist_store.set_value(&iter, title_column_num, &"Sample".to_value() as &gtk::Value);
-    playlist_store.set_value(&iter, artist_column_num, &"Elpmas".to_value() as &gtk::Value);
+    for info in playlistinfo {
+        let iter = playlist_store.insert(-1);
+        let title = match info.get("Title") {
+            None        => info.get("file").unwrap().to_value() as gtk::Value,
+            Some(title) => title.to_value() as gtk::Value,
+        };
+        let artist = match info.get("Artist") {
+            None         => "".to_value() as gtk::Value,
+            Some(artist) => artist.to_value() as gtk::Value,
+        };
+        playlist_store.set_value(&iter, title_column_num,  &title);
+        playlist_store.set_value(&iter, artist_column_num, &artist);
+    }
 
-    // let iter = playlist_store.insert(-1);
-    // playlist_store.set(&iter, &[0,1], &array_of_data);
-    // let iter = playlist_store.insert_with_values(Some(0), &[0,1], &array_of_data);
-    // let iter = playlist_store.insert_with_values(Some(0), &[0,1], &array_of_data);
-    // playlist_store.set(&playlist_store.insert(-1), &[0,1], &[&"asd", &"dsa"]);
-    // playlist_store.set_value(&iter, 1, &"asd".to_value() as &gtk::Value);
     playlist_view.set_model(Some(&playlist_store));
 
+    let scroll = gtk::ScrolledWindow::new(None, None);
+    scroll.add(&playlist_view);
 
-    window.add(&playlist_view);
+    // window.add(&playlist_view);
+    window.add(&scroll);
 
     window.show_all();
     gtk::main();
@@ -84,7 +94,7 @@ fn mpd_query_test() {
     let current         = mpd_query::currentsong(&mut mpd);
     let playlist        = mpd_query::playlist(&mut mpd);
     let playlistinfo    = mpd_query::playlistinfo(&mut mpd, "");
-    let list            = mpd_query::list(&mut mpd, "");
+    let list            = mpd_query::list(&mut mpd, "album");
 
     for item in ls_song {
         for key in item.keys() {
@@ -132,7 +142,8 @@ fn mpd_query_test() {
     }
 
     for item in playlistinfo {
-        println!("Title: {}", item.get("Title").unwrap());
+        println!("Title : {}", item.get("Title").unwrap());
+        println!("Artist: {}", item.get("Artist").unwrap());
     }
 
     for item in list {
