@@ -9,10 +9,6 @@ use mpd::mpd_query;
 use gtk::prelude::*;
 
 fn main() {
-<<<<<<< Updated upstream
-    window_test();
-    // mpd_query_test();
-=======
     // window_test();
     menu_bar();
     // mpd_query_test();
@@ -40,13 +36,41 @@ fn menu_bar() {
         Inhibit(false)
     });
 
-    let stack = gtk::Stack::new();
+    /* main Box */
+    let primary_box = gtk::Box::new(gtk::Orientation::Horizontal, 5);
 
-    window.add(&stack);
+    /* Stack */
+    let stack = gtk::Stack::new();
+    stack.set_transition_type(gtk::StackTransitionType::SlideLeft);
+
+    /* StackSwitch */
+    let stack_switcher = gtk::StackSwitcher::new();
+    stack_switcher.set_stack(Some(&stack));
+
+    /* StackSidebar */
+    let stack_sidebar = gtk::StackSidebar::new();
+    stack_sidebar.set_stack(&stack);
+
+    /* Stack inner */
+    let tv = gtk::TextView::new();
+    let buf = tv.get_buffer().unwrap();
+    buf.set_text("Text");
+    stack.add_titled(&tv, "view", "View");
+    stack.add(&tv);
+
+    let label = gtk::Label::new("asd");
+
+    stack.add_titled(&label, "label", "Label");
+    stack.add(&label);
+
+    primary_box.pack_start(&stack_sidebar, true, true, 5);
+    primary_box.pack_start(&stack, true, true, 5);
+
+    /* main */
+    window.add(&primary_box);
 
     window.show_all();
     gtk::main();
->>>>>>> Stashed changes
 }
 
 fn window_test(){
@@ -94,11 +118,7 @@ fn window_test(){
     for info in playlistinfo {
         let iter = playlist_store.insert(-1);
         let title = match info.get("Title") {
-<<<<<<< Updated upstream
-            None        => info.get("file").unwrap().to_value() as gtk::Value,
-=======
             None        => to_only_filename(info.get("file").unwrap()).to_value() as gtk::Value,
->>>>>>> Stashed changes
             Some(title) => title.to_value() as gtk::Value,
         };
         let artist = match info.get("Artist") {
