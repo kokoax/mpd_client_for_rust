@@ -1,16 +1,21 @@
-pub mod mpd_query {
-    use std;
-    use std::io::{Read, Write};
-    use std::vec::Vec;
-    use std::string::String;
-    use std::collections::HashMap;
-    use std::net::{TcpStream, Ipv4Addr,SocketAddrV4};
-    extern crate regex;
+extern crate regex;
 
-    // get tcp connection(socket) to mpd
-    pub fn get_mpd_socket(addr: Ipv4Addr, port: u16) -> TcpStream {
+use std;
+use std::io::{Read, Write};
+use std::vec::Vec;
+use std::string::String;
+use std::collections::HashMap;
+use std::net::{TcpStream, Ipv4Addr,SocketAddrV4};
+use std::sync::Mutex;
+
+pub struct MPDQuery {
+    mpd: Mutex<TcpStream>
+}
+
+impl MPDQuery {
+    pub fn new(addr: Ipv4Addr, port: u16) -> MPDQuery {
         let mut mpd: TcpStream = TcpStream::connect(SocketAddrV4::new(addr, port))
-            .expect("Failed get TCP socket(MPD_Query::get_mpd_socket)");
+            .expect("Failed get TCP socket(MPDQuery::get_mpd_socket)");
 
         // TODO without timeout
         // So, specify end keyword such.
@@ -20,11 +25,12 @@ pub mod mpd_query {
         let mut buf: String = String::new();
         let _ = mpd.read_to_string(&mut buf);
 
-        return mpd;
+        let mutex_mpd = Mutex::<TcpStream>::new(mpd);
+        MPDQuery{mpd: mutex_mpd}
     }
 
     // MPD receive data(String) to vector<hashmap>
-    fn mpdbuf_to_vec(buf: String) -> Vec<HashMap<String, String>> {
+    fn mpdbuf_to_vec(&self, buf: String) -> Vec<HashMap<String, String>> {
         let mut ret: Vec<HashMap<String, String>> = Vec::<HashMap<String, String>>::new();
         let mut ls: Vec<&str> = buf.split("\n").collect();
         ls.pop();  // "OK\n".split("\n") -> ["OK", ""].pop()
@@ -53,17 +59,19 @@ pub mod mpd_query {
     }
 
     // get currentsong infomation
-    pub fn currentsong(mpd: &mut TcpStream) -> HashMap<String, String> {
+    pub fn currentsong(&self) -> HashMap<String, String> {
+        let mut mpd = self.mpd.lock().unwrap();
         let mut buf: String = String::new();
 
         let _ = mpd.write(b"currentsong\n");
         let _ = mpd.read_to_string(&mut buf);
 
-        return mpdbuf_to_vec(buf).pop().unwrap();
+        return self.mpdbuf_to_vec(buf).pop().unwrap();
     }
 
     // get list any types(song, album, artist, etc...)
-    pub fn list(mpd: &mut TcpStream, filter: &str) -> Vec<String> {
+    pub fn list(&self, filter: &str) -> Vec<String> {
+        let mut mpd = self.mpd.lock().unwrap();
         let mut buf: String = String::new();
 
         let _ = mpd.write(format!("{} {}\n", "list", filter).as_bytes());
@@ -89,56 +97,59 @@ pub mod mpd_query {
         return ret;
     }
 
-    pub fn playlistinfo(mpd: &mut TcpStream, songpos: &str) -> Vec<HashMap<String, String>> {
+    pub fn playlistinfo(&self, songpos: &str) -> Vec<HashMap<String, String>> {
+        let mut mpd = self.mpd.lock().unwrap();
         let mut buf: String = String::new();
 
         let _ = mpd.write(format!("{} {}\n", "playlistinfo", songpos).as_bytes());
         let _ = mpd.read_to_string(&mut buf);
 
-        return mpdbuf_to_vec(buf);
+        return self.mpdbuf_to_vec(buf);
     }
 
-    pub fn playlist(mpd: &mut TcpStream) -> Vec<HashMap<String, String>> {
+    pub fn playlist(&self) -> Vec<HashMap<String, String>> {
+        let mut mpd = self.mpd.lock().unwrap();
         let mut buf: String = String::new();
 
         let _ = mpd.write(b"playlist\n");
         let _ = mpd.read_to_string(&mut buf);
 
-        return mpdbuf_to_vec(buf);
+        return self.mpdbuf_to_vec(buf);
     }
 
     // get only directory from ls
-    pub fn ls_dir(mpd: &mut TcpStream, path: &'static str) -> Vec<HashMap<String, String>> {
-        let mut ls_dir: Vec<HashMap<String, String>> = ls(mpd, path);
+    pub fn ls_dir(&self, path: &'static str) -> Vec<HashMap<String, String>> {
+        let mut ls_dir: Vec<HashMap<String, String>> = self.ls(path);
         ls_dir.retain(|item| item.contains_key("directory"));
         return ls_dir;
     }
     // get only directory from ls
-    pub fn ls_song(mpd: &mut TcpStream, path: &'static str) -> Vec<HashMap<String, String>> {
-        let mut ls_dir_and_song: Vec<HashMap<String, String>> = ls(mpd, path);
+    pub fn ls_song(&self, path: &'static str) -> Vec<HashMap<String, String>> {
+        let mut ls_dir_and_song: Vec<HashMap<String, String>> = self.ls(path);
         ls_dir_and_song.retain(|item| item.contains_key("file"));
         return ls_dir_and_song;
     }
     // get only playlist from ls
-    pub fn ls_playlist(mpd: &mut TcpStream, path: &'static str) -> Vec<HashMap<String, String>> {
-        let mut ls_playlist: Vec<HashMap<String, String>> = ls(mpd, path);
+    pub fn ls_playlist(&self, path: &'static str) -> Vec<HashMap<String, String>> {
+        let mut ls_playlist: Vec<HashMap<String, String>> = self.ls(path);
         ls_playlist.retain(|item| item.contains_key("playlist"));
         return ls_playlist;
     }
     // get directory and song from ls
-    pub fn ls_dir_and_song(mpd: &mut TcpStream, path: &'static str) -> Vec<HashMap<String, String>> {
-        let mut ls_dir_and_song: Vec<HashMap<String, String>> = ls(mpd, path);
+    pub fn ls_dir_and_song(&self, path: &'static str) -> Vec<HashMap<String, String>> {
+        let mut ls_dir_and_song: Vec<HashMap<String, String>> = self.ls(path);
         ls_dir_and_song.retain(|item| item.contains_key("file") || item.contains_key("directory"));
         return ls_dir_and_song;
     }
     // get mpd' ls command result
-    pub fn ls(mpd: &mut TcpStream, path: &'static str) -> Vec<HashMap<String, String>> {
+    pub fn ls(&self, path: &'static str) -> Vec<HashMap<String, String>> {
+        let mut mpd = self.mpd.lock().unwrap();
         let mut buf: String = String::new();
 
         let _ = mpd.write(format!("{} {}\n", "lsinfo", path).as_bytes());
         let _ = mpd.read_to_string(&mut buf);
 
-        return mpdbuf_to_vec(buf);
-   }
+        return self.mpdbuf_to_vec(buf);
+    }
 }
 
