@@ -1,5 +1,6 @@
 extern crate regex;
 extern crate gtk;
+extern crate gdk_pixbuf;
 
 mod main_window;
 mod mpd;
@@ -10,7 +11,7 @@ use gtk::prelude::*;
 
 fn main() {
     let mut mpd = mpd::MPDQuery::new(Ipv4Addr::new(127,0,0,1), 6600);
-    main_window::view(mpd);
+    main_window::view(&mpd);
     // window::view();
 }
 
