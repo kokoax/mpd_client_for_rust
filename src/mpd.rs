@@ -41,7 +41,6 @@ impl MPDQuery {
         let is_last = regex::Regex::new(r"OK").unwrap();
         // The buffer's top line is "file" or "directory" or "playlist"
         let is_top_attr = regex::Regex::new(r"file|directory|playlist").unwrap();
-        let mut count = 0;
         for line in ls {
             if !is_last.is_match(line) {
                 // ex:item. "file: ~/Music/Sample.mp3".splite(": ") -> ["file", "~/Music/Sample.mp3"]
@@ -49,13 +48,11 @@ impl MPDQuery {
                 if is_top_attr.is_match(splited[0]) {
                     ret.push(ls_data.clone());
                     ls_data.clear();
-                    count = 0;
                 }
                 ls_data.insert(splited[0].to_string(), splited[1].to_string());
             }else{
                 ret.push(ls_data.clone());
             }
-            count += 1;
         }
         ret.remove(0);
         return ret;
