@@ -3,10 +3,7 @@ use gtk::prelude::*;
 
 use std;
 use mpd;
-use mpd::MPDQuery;
 use gdk_pixbuf;
-
-use std::net::{TcpStream, Ipv4Addr,SocketAddrV4};
 
 pub fn view(mpd: &mpd::MPDQuery) {
     gtk::init()
@@ -18,8 +15,6 @@ pub fn view(mpd: &mpd::MPDQuery) {
         gtk::main_quit();
         gtk::prelude::Inhibit(false)
      });
-
-    let label = gtk::Label::new("asd");
 
     main_window.add(&get_main_box(mpd));
 
@@ -99,7 +94,6 @@ fn set_all_cover(mpd: &mpd::MPDQuery, container: &gtk::FlowBox) {
         .map(|item| format!("{}/.cache/mpd_client/cover/{}.png", home, item)).collect();
 
     for filepath in album_cover_paths {
-        let colorspace: gdk_pixbuf::Colorspace = 0;
         let pixbuf = match gdk_pixbuf::Pixbuf::new_from_file_at_size(&filepath, 150, 150) {
             Ok(pixbuf) => pixbuf,
             _          => gdk_pixbuf::Pixbuf::new_from_file_at_size(&noimage_path, 150, 150).unwrap(),
@@ -110,7 +104,7 @@ fn set_all_cover(mpd: &mpd::MPDQuery, container: &gtk::FlowBox) {
 }
 
 fn get_album_window(mpd: &mpd::MPDQuery) -> gtk::ScrolledWindow {
-    let mut flow = gtk::FlowBox::new();
+    let flow = gtk::FlowBox::new();
     flow.set_valign(gtk::Align::Start);
     flow.set_column_spacing(20);
     flow.set_row_spacing(20);
@@ -148,7 +142,7 @@ fn get_inside_of_dir(path: &String, outside_iter: &gtk::TreeIter, store: &gtk::T
                 Some(album) => album.to_value() as gtk::Value,
             };
 
-            let iter = store.insert_with_values(Some(&outside_iter), None, &[0,1,2], &[&title,&artist,&album]);
+            let _ = store.insert_with_values(Some(&outside_iter), None, &[0,1,2], &[&title,&artist,&album]);
         }
     }
 }
@@ -180,14 +174,15 @@ fn get_music_dir_window(mpd: &mpd::MPDQuery) -> gtk::ScrolledWindow {
             let iter = dir_store.insert_with_values(None, None, &[0], &[&dirname]);
 
             get_inside_of_dir(full_dirname, &iter, &dir_store, mpd);
+        // TODO Title and artist and album
         } else if ls.contains_key("Title") {
             let title = ls.get("Title");
 
-            let iter = dir_store.insert_with_values(None, None, &[0], &[&title]);
+            let _ = dir_store.insert_with_values(None, None, &[0], &[&title]);
         } else if ls.contains_key("file") {
             let file = to_only_filename(ls.get("file").unwrap());
 
-            let iter = dir_store.insert_with_values(None, None, &[0], &[&file]);
+            let _ = dir_store.insert_with_values(None, None, &[0], &[&file]);
         }
     }
 
@@ -215,10 +210,10 @@ fn get_main_box(mpd: &mpd::MPDQuery) -> gtk::Box {
     let pw = get_playlist_window(mpd);
     stack.add_titled(&pw, "playlist", "Playlist");
 
-    let mut aw = get_album_window(mpd);
+    let aw = get_album_window(mpd);
     stack.add_titled(&aw, "album", "Album");
 
-    let mut mw = get_music_dir_window(mpd);
+    let mw = get_music_dir_window(mpd);
     stack.add_titled(&mw, "music_dir", "MusicDirectory");
 
     primary_box.pack_start(&stack_sidebar, false, true, 5);
