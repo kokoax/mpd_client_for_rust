@@ -41,6 +41,18 @@ fn init(main_window: &gtk::Window) {
     main_window.set_default_size(350,70);
 }
 
+fn get_new_column(title: &str, column_num: u32) -> gtk::TreeViewColumn {
+    let column   = gtk::TreeViewColumn::new();
+    column.set_title(title);
+
+    let cell = gtk::CellRendererText::new();
+
+    column.pack_start(&cell, true);
+    column.add_attribute(&cell, "text", column_num as i32);
+
+    return column;
+}
+
 fn get_playlist_window(mpd: &mpd::MPDQuery) -> gtk::ScrolledWindow {
     let playlistinfo    = mpd.playlistinfo("");
 
@@ -51,17 +63,8 @@ fn get_playlist_window(mpd: &mpd::MPDQuery) -> gtk::ScrolledWindow {
     let title_column_num  = 0;
     let artist_column_num = 1;
 
-    let title_column   = gtk::TreeViewColumn::new();
-    title_column.set_title("Title");
-    let title_cell = gtk::CellRendererText::new();
-    title_column.pack_start(&title_cell, true);
-    title_column.add_attribute(&title_cell, "text", title_column_num as i32);
-
-    let artist_column   = gtk::TreeViewColumn::new();
-    artist_column.set_title("Artist");
-    let artist_cell = gtk::CellRendererText::new();
-    artist_column.pack_start(&artist_cell, true);
-    artist_column.add_attribute(&artist_cell, "text", artist_column_num as i32);
+    let title_column  = get_new_column("Title", title_column_num);
+    let artist_column = get_new_column("Artist", artist_column_num);
 
     playlist_view.append_column(&title_column);
     playlist_view.append_column(&artist_column);
@@ -96,7 +99,6 @@ fn set_all_cover(mpd: &mpd::MPDQuery, container: &gtk::FlowBox) {
         .map(|item| format!("{}/.cache/mpd_client/cover/{}.png", home, item)).collect();
 
     for filepath in album_cover_paths {
-        println!("{}", filepath);
         let colorspace: gdk_pixbuf::Colorspace = 0;
         let pixbuf = match gdk_pixbuf::Pixbuf::new_from_file_at_size(&filepath, 150, 150) {
             Ok(pixbuf) => pixbuf,
@@ -121,6 +123,82 @@ fn get_album_window(mpd: &mpd::MPDQuery) -> gtk::ScrolledWindow {
     return scroll;
 }
 
+fn get_inside_of_dir(path: &String, outside_iter: &gtk::TreeIter, store: &gtk::TreeStore, mpd: &mpd::MPDQuery) {
+    let lsinfo = mpd.ls(&path);
+    for ls in lsinfo {
+
+        if ls.contains_key("directory") {
+            let full_dirname = ls.get("directory").unwrap();
+            let dirname = to_only_filename(full_dirname);
+
+            let iter = store.insert_with_values(Some(&outside_iter), None, &[0], &[&dirname]);
+
+            get_inside_of_dir(full_dirname, &iter, &store, mpd);
+        } else if ls.contains_key("file") {
+            let title = match ls.get("Title") {
+                None        => to_only_filename(ls.get("file").unwrap()).to_value() as gtk::Value,
+                Some(title) => title.to_value() as gtk::Value,
+            };
+            let artist = match ls.get("Artist") {
+                None         => "".to_value() as gtk::Value,
+                Some(artist) => artist.to_value() as gtk::Value,
+            };
+            let album = match ls.get("Album") {
+                None         => "".to_value() as gtk::Value,
+                Some(album) => album.to_value() as gtk::Value,
+            };
+
+            let iter = store.insert_with_values(Some(&outside_iter), None, &[0,1,2], &[&title,&artist,&album]);
+        }
+    }
+}
+
+fn get_music_dir_window(mpd: &mpd::MPDQuery) -> gtk::ScrolledWindow {
+    let lsinfo = mpd.ls("");
+
+    let column_types   = [gtk::Type::String, gtk::Type::String, gtk::Type::String];
+    let dir_view  = gtk::TreeView::new();
+    let dir_store = gtk::TreeStore::new(&column_types);
+
+    let title_column_num  = 0;
+    let artist_column_num = 1;
+    let album_column_num = 2;
+
+    let title_column  = get_new_column("Title", title_column_num);
+    let artist_column = get_new_column("Artist", artist_column_num);
+    let album_column = get_new_column("Album", album_column_num);
+
+    dir_view.append_column(&title_column);
+    dir_view.append_column(&artist_column);
+    dir_view.append_column(&album_column);
+
+    for ls in lsinfo {
+        if ls.contains_key("directory") {
+            let full_dirname = ls.get("directory").unwrap();
+            let dirname = to_only_filename(full_dirname);
+
+            let iter = dir_store.insert_with_values(None, None, &[0], &[&dirname]);
+
+            get_inside_of_dir(full_dirname, &iter, &dir_store, mpd);
+        } else if ls.contains_key("Title") {
+            let title = ls.get("Title");
+
+            let iter = dir_store.insert_with_values(None, None, &[0], &[&title]);
+        } else if ls.contains_key("file") {
+            let file = to_only_filename(ls.get("file").unwrap());
+
+            let iter = dir_store.insert_with_values(None, None, &[0], &[&file]);
+        }
+    }
+
+    dir_view.set_model(Some(&dir_store));
+
+    let scroll = gtk::ScrolledWindow::new(None, None);
+    scroll.add(&dir_view);
+
+    return scroll;
+}
+
 fn get_main_box(mpd: &mpd::MPDQuery) -> gtk::Box {
     /* main Box */
     let primary_box = gtk::Box::new(gtk::Orientation::Horizontal, 5);
@@ -136,85 +214,16 @@ fn get_main_box(mpd: &mpd::MPDQuery) -> gtk::Box {
     /* Stack inner */
     let pw = get_playlist_window(mpd);
     stack.add_titled(&pw, "playlist", "Playlist");
-    stack.add(&pw);
 
     let mut aw = get_album_window(mpd);
     stack.add_titled(&aw, "album", "Album");
-    stack.add(&aw);
+
+    let mut mw = get_music_dir_window(mpd);
+    stack.add_titled(&mw, "music_dir", "MusicDirectory");
 
     primary_box.pack_start(&stack_sidebar, false, true, 5);
     primary_box.pack_start(&stack, true, true, 5);
 
     return primary_box;
-}
-
-fn mpd_query_test() {
-    let mut mpd: mpd::MPDQuery = mpd::MPDQuery::new(Ipv4Addr::new(127,0,0,1), 6600);
-
-    // let ls_cmd = "\"ADAM at/CLOCK TOWER\"";
-    let ls_cmd = "/";
-    let ls              = mpd.ls(ls_cmd);
-    let ls_song         = mpd.ls_song(ls_cmd);
-    let ls_dir          = mpd.ls_dir(ls_cmd);
-    let ls_dir_and_song = mpd.ls_dir_and_song(ls_cmd);
-    let ls_playlist     = mpd.ls_playlist(ls_cmd);
-    let current         = mpd.currentsong();
-    let playlist        = mpd.playlist();
-    let playlistinfo    = mpd.playlistinfo("");
-    let list            = mpd.list("album");
-
-    for item in ls_song {
-        for key in item.keys() {
-            println!("{}: {}", key, item.get(key).unwrap());
-        }
-        println!();
-    }
-
-    for item in ls_dir {
-        for key in item.keys() {
-            println!("{}: {}", key, item.get(key).unwrap());
-        }
-        println!();
-    }
-
-    for item in ls_playlist {
-        for key in item.keys() {
-            println!("{}: {}", key, item.get(key).unwrap());
-        }
-        println!();
-    }
-
-    for item in ls_dir_and_song {
-        for key in item.keys() {
-            println!("{}: {}", key, item.get(key).unwrap());
-        }
-        println!();
-    }
-
-    for item in ls {
-        for key in item.keys() {
-            println!("{}: {}", key, item.get(key).unwrap());
-        }
-        println!();
-    }
-
-    for key in current.keys() {
-        println!("{}: {}", key, current.get(key).unwrap());
-    }
-
-    for item in playlist {
-        for key in item.keys() {
-            println!("{}: {}", key, item.get(key).unwrap());
-        }
-    }
-
-    for item in playlistinfo {
-        println!("Title : {}", item.get("Title").unwrap());
-        println!("Artist: {}", item.get("Artist").unwrap());
-    }
-
-    for item in list {
-        println!("Album: {}", item);
-    }
 }
 
