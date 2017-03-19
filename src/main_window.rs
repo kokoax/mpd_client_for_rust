@@ -1,12 +1,14 @@
 extern crate gtk;
 use gtk::prelude::*;
 
+use std;
 use mpd;
 use mpd::MPDQuery;
+use gdk_pixbuf;
 
 use std::net::{TcpStream, Ipv4Addr,SocketAddrV4};
 
-pub fn view(mpd: mpd::MPDQuery) {
+pub fn view(mpd: &mpd::MPDQuery) {
     gtk::init()
         .expect("Failed to initialize GTK");
 
@@ -39,7 +41,7 @@ fn init(main_window: &gtk::Window) {
     main_window.set_default_size(350,70);
 }
 
-fn get_playlist_window(mpd: mpd::MPDQuery) -> gtk::ScrolledWindow {
+fn get_playlist_window(mpd: &mpd::MPDQuery) -> gtk::ScrolledWindow {
     let playlistinfo    = mpd.playlistinfo("");
 
     let column_types   = [gtk::Type::String, gtk::Type::String];
@@ -65,7 +67,6 @@ fn get_playlist_window(mpd: mpd::MPDQuery) -> gtk::ScrolledWindow {
     playlist_view.append_column(&artist_column);
 
     for info in playlistinfo {
-        // let iter = playlist_store.insert(-1);
         let title = match info.get("Title") {
             None        => to_only_filename(info.get("file").unwrap()).to_value() as gtk::Value,
             Some(title) => title.to_value() as gtk::Value,
@@ -75,8 +76,6 @@ fn get_playlist_window(mpd: mpd::MPDQuery) -> gtk::ScrolledWindow {
             Some(artist) => artist.to_value() as gtk::Value,
         };
         playlist_store.insert_with_values(Some(0), &[title_column_num, artist_column_num], &[&title, &artist]);
-        // playlist_store.set_value(&iter, title_column_num,  &title);
-        // playlist_store.set_value(&iter, artist_column_num, &artist);
     }
 
     playlist_view.set_model(Some(&playlist_store));
@@ -87,7 +86,42 @@ fn get_playlist_window(mpd: mpd::MPDQuery) -> gtk::ScrolledWindow {
     return scroll;
 }
 
-fn get_main_box(mpd: mpd::MPDQuery) -> gtk::Box {
+fn set_all_cover(mpd: &mpd::MPDQuery, container: &gtk::FlowBox) {
+    // TODO May be different of behavior windows and linux
+    let home = std::env::home_dir().unwrap().into_os_string().into_string().unwrap();
+
+    let noimage_path = format!("{}/.cache/mpd_client/cover/noimage.png", home);
+    let album_array = mpd.list("Album");
+    let album_cover_paths: Vec<String> = album_array.into_iter()
+        .map(|item| format!("{}/.cache/mpd_client/cover/{}.png", home, item)).collect();
+
+    for filepath in album_cover_paths {
+        println!("{}", filepath);
+        let colorspace: gdk_pixbuf::Colorspace = 0;
+        let pixbuf = match gdk_pixbuf::Pixbuf::new_from_file_at_size(&filepath, 150, 150) {
+            Ok(pixbuf) => pixbuf,
+            _          => gdk_pixbuf::Pixbuf::new_from_file_at_size(&noimage_path, 150, 150).unwrap(),
+        };
+        let image = gtk::Image::new_from_pixbuf(Some(&pixbuf));
+        container.add(&image);
+    }
+}
+
+fn get_album_window(mpd: &mpd::MPDQuery) -> gtk::ScrolledWindow {
+    let mut flow = gtk::FlowBox::new();
+    flow.set_valign(gtk::Align::Start);
+    flow.set_column_spacing(20);
+    flow.set_row_spacing(20);
+
+    set_all_cover(mpd, &flow);
+
+    let scroll = gtk::ScrolledWindow::new(None, None);
+    scroll.add(&flow);
+
+    return scroll;
+}
+
+fn get_main_box(mpd: &mpd::MPDQuery) -> gtk::Box {
     /* main Box */
     let primary_box = gtk::Box::new(gtk::Orientation::Horizontal, 5);
 
@@ -103,6 +137,10 @@ fn get_main_box(mpd: mpd::MPDQuery) -> gtk::Box {
     let pw = get_playlist_window(mpd);
     stack.add_titled(&pw, "playlist", "Playlist");
     stack.add(&pw);
+
+    let mut aw = get_album_window(mpd);
+    stack.add_titled(&aw, "album", "Album");
+    stack.add(&aw);
 
     primary_box.pack_start(&stack_sidebar, false, true, 5);
     primary_box.pack_start(&stack, true, true, 5);

@@ -84,9 +84,7 @@ impl MPDQuery {
                 "OK" => "OK".to_string(),
                 "" => "NL".to_string(),
                 _      => {
-                    println!("{}", x);
                     let splited: Vec<&str> = x.split(": ").collect();
-                    println!("after");
                     splited[1].to_string()
                 },
             }
@@ -117,32 +115,42 @@ impl MPDQuery {
         return self.mpdbuf_to_vec(buf);
     }
 
+    pub fn find(&self, filter: &str, uri: &str) -> Vec<HashMap<String, String>> {
+        let mut mpd = self.mpd.lock().unwrap();
+        let mut buf: String = String::new();
+
+        let _ = mpd.write(format!("{} {} \"{}\"\n", "find", filter, uri).as_bytes());
+        let _ = mpd.read_to_string(&mut buf);
+
+        return self.mpdbuf_to_vec(buf);
+    }
+
     // get only directory from ls
-    pub fn ls_dir(&self, path: &'static str) -> Vec<HashMap<String, String>> {
+    pub fn ls_dir(&self, path: &str) -> Vec<HashMap<String, String>> {
         let mut ls_dir: Vec<HashMap<String, String>> = self.ls(path);
         ls_dir.retain(|item| item.contains_key("directory"));
         return ls_dir;
     }
     // get only directory from ls
-    pub fn ls_song(&self, path: &'static str) -> Vec<HashMap<String, String>> {
+    pub fn ls_song(&self, path: &str) -> Vec<HashMap<String, String>> {
         let mut ls_dir_and_song: Vec<HashMap<String, String>> = self.ls(path);
         ls_dir_and_song.retain(|item| item.contains_key("file"));
         return ls_dir_and_song;
     }
     // get only playlist from ls
-    pub fn ls_playlist(&self, path: &'static str) -> Vec<HashMap<String, String>> {
+    pub fn ls_playlist(&self, path: &str) -> Vec<HashMap<String, String>> {
         let mut ls_playlist: Vec<HashMap<String, String>> = self.ls(path);
         ls_playlist.retain(|item| item.contains_key("playlist"));
         return ls_playlist;
     }
     // get directory and song from ls
-    pub fn ls_dir_and_song(&self, path: &'static str) -> Vec<HashMap<String, String>> {
+    pub fn ls_dir_and_song(&self, path: &str) -> Vec<HashMap<String, String>> {
         let mut ls_dir_and_song: Vec<HashMap<String, String>> = self.ls(path);
         ls_dir_and_song.retain(|item| item.contains_key("file") || item.contains_key("directory"));
         return ls_dir_and_song;
     }
     // get mpd' ls command result
-    pub fn ls(&self, path: &'static str) -> Vec<HashMap<String, String>> {
+    pub fn ls(&self, path: &str) -> Vec<HashMap<String, String>> {
         let mut mpd = self.mpd.lock().unwrap();
         let mut buf: String = String::new();
 
