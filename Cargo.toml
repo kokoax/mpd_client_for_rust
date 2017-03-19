@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["kokoax <yomo4808@gmail.com>"]
 
 [dependencies]
-gtk   = { git = "https://github.com/gtk-rs/gtk.git" }
 regex = "0.2"
+
+[dependencies.gtk]
+version = "0.1.2"
+features = ["v3_16"]
 
