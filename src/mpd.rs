@@ -41,6 +41,7 @@ impl MPDQuery {
         let is_last = regex::Regex::new(r"OK").unwrap();
         // The buffer's top line is "file" or "directory" or "playlist"
         let is_top_attr = regex::Regex::new(r"file|directory|playlist").unwrap();
+        let mut count = 0;
         for line in ls {
             if !is_last.is_match(line) {
                 // ex:item. "file: ~/Music/Sample.mp3".splite(": ") -> ["file", "~/Music/Sample.mp3"]
@@ -48,11 +49,13 @@ impl MPDQuery {
                 if is_top_attr.is_match(splited[0]) {
                     ret.push(ls_data.clone());
                     ls_data.clear();
+                    count = 0;
                 }
                 ls_data.insert(splited[0].to_string(), splited[1].to_string());
             }else{
                 ret.push(ls_data.clone());
             }
+            count += 1;
         }
         ret.remove(0);
         return ret;
@@ -60,22 +63,14 @@ impl MPDQuery {
 
     // get currentsong infomation
     pub fn currentsong(&self) -> HashMap<String, String> {
-        let mut mpd = self.mpd.lock().unwrap();
-        let mut buf: String = String::new();
-
-        let _ = mpd.write(b"currentsong\n");
-        let _ = mpd.read_to_string(&mut buf);
+        let  buf: String = self.do_cmd(format!("currentsong\n"));
 
         return self.mpdbuf_to_vec(buf).pop().unwrap();
     }
 
     // get list any types(song, album, artist, etc...)
     pub fn list(&self, filter: &str) -> Vec<String> {
-        let mut mpd = self.mpd.lock().unwrap();
-        let mut buf: String = String::new();
-
-        let _ = mpd.write(format!("{} {}\n", "list", filter).as_bytes());
-        let _ = mpd.read_to_string(&mut buf);
+        let  buf: String = self.do_cmd(format!("list {}\n", filter));
 
         let splited: Vec<&str> = buf.split("\n").collect();
 
@@ -95,32 +90,26 @@ impl MPDQuery {
         return ret;
     }
 
-    pub fn playlistinfo(&self, songpos: &str) -> Vec<HashMap<String, String>> {
-        let mut mpd = self.mpd.lock().unwrap();
-        let mut buf: String = String::new();
+    pub fn listall(&self) -> Vec<HashMap<String, String>> {
+        let  buf: String = self.do_cmd(format!("listall\n"));
 
-        let _ = mpd.write(format!("{} {}\n", "playlistinfo", songpos).as_bytes());
-        let _ = mpd.read_to_string(&mut buf);
+        return self.mpdbuf_to_vec(buf);
+    }
+
+    pub fn playlistinfo(&self, songpos: &str) -> Vec<HashMap<String, String>> {
+        let  buf: String = self.do_cmd(format!("playlistinfo {}\n", songpos));
 
         return self.mpdbuf_to_vec(buf);
     }
 
     pub fn playlist(&self) -> Vec<HashMap<String, String>> {
-        let mut mpd = self.mpd.lock().unwrap();
-        let mut buf: String = String::new();
-
-        let _ = mpd.write(b"playlist\n");
-        let _ = mpd.read_to_string(&mut buf);
+        let  buf: String = self.do_cmd(format!("playlist\n"));
 
         return self.mpdbuf_to_vec(buf);
     }
 
     pub fn find(&self, filter: &str, uri: &str) -> Vec<HashMap<String, String>> {
-        let mut mpd = self.mpd.lock().unwrap();
-        let mut buf: String = String::new();
-
-        let _ = mpd.write(format!("{} {} \"{}\"\n", "find", filter, uri).as_bytes());
-        let _ = mpd.read_to_string(&mut buf);
+        let  buf: String = self.do_cmd(format!("find {} \"{}\"\n", filter, uri));
 
         return self.mpdbuf_to_vec(buf);
     }
@@ -151,13 +140,27 @@ impl MPDQuery {
     }
     // get mpd' ls command result
     pub fn ls(&self, path: &str) -> Vec<HashMap<String, String>> {
-        let mut mpd = self.mpd.lock().unwrap();
-        let mut buf: String = String::new();
-
-        let _ = mpd.write(format!("{} {}\n", "lsinfo", path).as_bytes());
-        let _ = mpd.read_to_string(&mut buf);
+        let  buf: String = self.do_cmd(format!("lsinfo \"{}\"\n", path));
 
         return self.mpdbuf_to_vec(buf);
+    }
+
+    fn do_cmd(&self, cmd: String) -> String {
+        let mut mpd = self.mpd.lock().unwrap();
+        let mut buf: String = String::new();
+        let is_ending = regex::Regex::new(r"OK").unwrap();
+
+        let _ = mpd.write(cmd.as_bytes());
+        let _ = mpd.read_to_string(&mut buf);
+
+        while !is_ending.is_match(&buf) {
+            std::thread::sleep(std::time::Duration::from_millis(1));
+            let mut tmp: String = String::new();
+            let _ = mpd.read_to_string(&mut tmp);
+            buf = format!("{}{}", buf, tmp);
+        }
+
+        return buf;
     }
 }
 
