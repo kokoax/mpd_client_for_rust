@@ -174,15 +174,21 @@ fn get_music_dir_window(mpd: &mpd::MPDQuery) -> gtk::ScrolledWindow {
             let iter = dir_store.insert_with_values(None, None, &[0], &[&dirname]);
 
             get_inside_of_dir(full_dirname, &iter, &dir_store, mpd);
-        // TODO Title and artist and album
-        } else if ls.contains_key("Title") {
-            let title = ls.get("Title");
-
-            let _ = dir_store.insert_with_values(None, None, &[0], &[&title]);
         } else if ls.contains_key("file") {
-            let file = to_only_filename(ls.get("file").unwrap());
+            let title = match ls.get("Title") {
+                None        => to_only_filename(ls.get("file").unwrap()).to_value() as gtk::Value,
+                Some(title) => title.to_value() as gtk::Value,
+            };
+            let artist = match ls.get("Artist") {
+                None         => "".to_value() as gtk::Value,
+                Some(artist) => artist.to_value() as gtk::Value,
+            };
+            let album = match ls.get("Album") {
+                None         => "".to_value() as gtk::Value,
+                Some(album) => album.to_value() as gtk::Value,
+            };
 
-            let _ = dir_store.insert_with_values(None, None, &[0], &[&file]);
+            let _ = dir_store.insert_with_values(None, None, &[0,1,2], &[&title,&artist,&album]);
         }
     }
 
