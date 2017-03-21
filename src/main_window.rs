@@ -156,14 +156,24 @@ impl MainWindow {
         playlist_view.set_enable_search(false);
         playlist_view.get_selection().set_mode(gtk::SelectionMode::Multiple);
 
-
+        // TODO: more better than that way(mpd clone).
         let locked_mpd = self.mpd.lock().unwrap();
-        let mpd = locked_mpd.clone();
+        let mut mpd_forcus   = locked_mpd.clone();
+        let mut mpd_keypress = locked_mpd.clone();
+        playlist_view.connect_focus_in_event(move |widget, _| {
+            let mpd = mpd_forcus.clone();
+            let mut playlistinfo = mpd.playlistinfo("");
+            playlistinfo.reverse();
+            let playlist_store = MainWindow::get_playlist_store(playlistinfo);
+            widget.set_model(Some(&playlist_store));
+            gtk::prelude::Inhibit(false)
+        });
         playlist_view.connect_key_press_event(move |widget,event_key| {
             // TODO: more better than that way.
-            let mpd = mpd.clone();
+            let mpd = mpd_keypress.clone();
             match event_key.get_keyval() as u32 {
-                65535 => {  // Delete key
+                // 65535 => {  // Delete key
+                100 => {  // 100 means 'd'
                     let (paths, _) = widget.get_selection().get_selected_rows();
                     let mut gap = 0;  // gap of deleting song in playlist(To move forward under the song).
                     for path in paths {
@@ -237,10 +247,8 @@ impl MainWindow {
 
                 self.get_inside_of_dir(full_dirname, &iter, &store);
             } else if ls.contains_key("file") {
-                let title = match ls.get("Title") {
-                    None        => MainWindow::to_only_filename(ls.get("file").unwrap()).to_value() as gtk::Value,
-                    Some(title) => title.to_value() as gtk::Value,
-                };
+                let filename = MainWindow::to_only_filename(ls.get("file").unwrap()).to_value() as gtk::Value;
+
                 let artist = match ls.get("Artist") {
                     None         => "".to_value() as gtk::Value,
                     Some(artist) => artist.to_value() as gtk::Value,
@@ -250,7 +258,7 @@ impl MainWindow {
                     Some(album) => album.to_value() as gtk::Value,
                 };
 
-                let _ = store.insert_with_values(Some(&outside_iter), None, &[0,1,2], &[&title,&artist,&album]);
+                let _ = store.insert_with_values(Some(&outside_iter), None, &[0,1,2], &[&filename,&artist,&album]);
             }
         }
     }
@@ -264,15 +272,15 @@ impl MainWindow {
         let dir_view  = gtk::TreeView::new();
         let dir_store = gtk::TreeStore::new(&column_types);
 
-        let title_column_num  = 0;
+        let filename_column_num  = 0;
         let artist_column_num = 1;
         let album_column_num = 2;
 
-        let title_column  = self.get_new_column("Title", title_column_num);
+        let filename_column  = self.get_new_column("Filename", filename_column_num);
         let artist_column = self.get_new_column("Artist", artist_column_num);
         let album_column  = self.get_new_column("Album", album_column_num);
 
-        dir_view.append_column(&title_column);
+        dir_view.append_column(&filename_column);
         dir_view.append_column(&artist_column);
         dir_view.append_column(&album_column);
 
@@ -285,10 +293,8 @@ impl MainWindow {
 
                 self.get_inside_of_dir(full_dirname, &iter, &dir_store);
             } else if ls.contains_key("file") {
-                let title = match ls.get("Title") {
-                    None        => MainWindow::to_only_filename(ls.get("file").unwrap()).to_value() as gtk::Value,
-                    Some(title) => title.to_value() as gtk::Value,
-                };
+                let filename = MainWindow::to_only_filename(ls.get("file").unwrap()).to_value() as gtk::Value;
+
                 let artist = match ls.get("Artist") {
                     None         => "".to_value() as gtk::Value,
                     Some(artist) => artist.to_value() as gtk::Value,
@@ -298,11 +304,50 @@ impl MainWindow {
                     Some(album) => album.to_value() as gtk::Value,
                 };
 
-                let _ = dir_store.insert_with_values(None, None, &[0,1,2], &[&title,&artist,&album]);
+                let _ = dir_store.insert_with_values(None, None, &[0,1,2], &[&filename,&artist,&album]);
             }
         }
 
         dir_view.set_model(Some(&dir_store));
+        // Search function is usefull so should also guess "true".
+        dir_view.set_enable_search(false);
+        dir_view.get_selection().set_mode(gtk::SelectionMode::Multiple);
+
+        let locked_mpd = self.mpd.lock().unwrap();
+        let mpd = locked_mpd.clone();
+        dir_view.connect_key_press_event(move |widget,event_key| {
+            // TODO: more better than that way.
+            let mpd = mpd.clone();
+            match event_key.get_keyval() as u32 {
+                97 => {  // 97 means 'a'
+                    let (paths, _) = widget.get_selection().get_selected_rows();
+                    let model = widget.get_model().unwrap();
+                    for path in paths {
+                        let mut iter = model.iter_children(None).unwrap();
+                        let mut pathname  = String::new();
+                        let mut iter_path = String::new();
+                        for index in path.get_indices() {
+                            iter_path = match iter_path.as_ref() {
+                                "" => index.to_string(),
+                                _  => format!("{}:{}", iter_path, index.to_string()),
+                            };
+
+                            iter = model.get_iter_from_string(&iter_path).unwrap();
+
+                            let currentname = model.get_value(&iter, 0).get::<String>().unwrap();
+                            pathname = match pathname.as_ref() {
+                                "" => currentname,
+                                _  => format!("{}/{}", pathname, currentname),
+                            };
+                        }
+                        mpd.add(&pathname);
+                    }
+                },
+                _     => (),
+            }
+            gtk::prelude::Inhibit(false)
+        });
+        drop(locked_mpd);
 
         let scroll = gtk::ScrolledWindow::new(None, None);
         scroll.add(&dir_view);
