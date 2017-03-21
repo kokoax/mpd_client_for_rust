@@ -68,7 +68,11 @@ impl MPDQuery {
 
     pub fn delete(&self, songpos: &str){
         // TODO: catch Exeption and return error or expect
-        let _ = self.do_cmd(format!("delete {}\n", songpos));
+        let _ = self.do_cmd(format!("delete \"{}\"\n", songpos));
+    }
+
+    pub fn add(&self, uri: &str){
+        let _ = self.do_cmd(format!("add \"{}\"\n", uri));
     }
 
     // get currentsong infomation
