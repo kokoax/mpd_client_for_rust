@@ -9,7 +9,15 @@ use std::net::{TcpStream, Ipv4Addr,SocketAddrV4};
 use std::sync::Mutex;
 
 pub struct MPDQuery {
-    mpd: Mutex<TcpStream>
+    mpd:  Mutex<TcpStream>,
+    addr: Ipv4Addr,
+    port: u16
+}
+
+impl Clone for MPDQuery {
+    fn clone(&self) -> MPDQuery {
+        MPDQuery::new(self.addr, self.port)
+    }
 }
 
 impl MPDQuery {
@@ -26,7 +34,7 @@ impl MPDQuery {
         let _ = mpd.read_to_string(&mut buf);
 
         let mutex_mpd = Mutex::<TcpStream>::new(mpd);
-        MPDQuery{mpd: mutex_mpd}
+        MPDQuery{mpd: mutex_mpd, addr: addr, port: port}
     }
 
     // MPD receive data(String) to vector<hashmap>
@@ -56,6 +64,11 @@ impl MPDQuery {
         }
         ret.remove(0);
         return ret;
+    }
+
+    pub fn delete(&self, songpos: &str){
+        // TODO: catch Exeption and return error or expect
+        let _ = self.do_cmd(format!("delete {}\n", songpos));
     }
 
     // get currentsong infomation

@@ -13,6 +13,7 @@ pub struct MainWindow {
     mpd: Mutex<mpd::MPDQuery>
 }
 
+
 impl MainWindow {
     pub fn new(mpd_org: mpd::MPDQuery) -> MainWindow {
         let mutex_mpd_org = Mutex::<mpd::MPDQuery>::new(mpd_org);
@@ -33,6 +34,7 @@ impl MainWindow {
             .expect("Failed to initialize GTK");
 
         let mut main_window = gtk::Window::new(gtk::WindowType::Toplevel);
+        let mut all_container = gtk::Box::new(gtk::Orientation::Vertical, 10);
 
         self.init(&mut main_window);
 
@@ -43,18 +45,21 @@ impl MainWindow {
         });
 
         println!("create window");
-        main_window.add(&self.get_main_box());
+        all_container.pack_start(&self.get_header(),   false, true, 5);
+        all_container.pack_start(&self.get_main_box(),  true, true, 5);
+
+        main_window.add(&all_container);
 
         println!("show");
         main_window.show_all();
         gtk::main();
     }
 
-
-    fn to_only_filename(&self, data: &String) -> String {
+    fn to_only_filename(data: &String) -> String {
         let mut splited: Vec<&str> = data.split("/").collect();
         return splited.pop().unwrap().to_string() as String;
     }
+
 
     fn get_new_column(&self, title: &str, column_num: u32) -> gtk::TreeViewColumn {
         let column   = gtk::TreeViewColumn::new();
@@ -68,31 +73,44 @@ impl MainWindow {
         return column;
     }
 
-    fn get_playlist_window(&self) -> gtk::ScrolledWindow {
-        let mut mpd = self.mpd.lock().unwrap();
-        let mut playlistinfo   = mpd.playlistinfo("");
-        drop(mpd);
-        playlistinfo.reverse();
+    fn get_header(&self) -> gtk::Box {
+        let header = gtk::Box::new(gtk::Orientation::Vertical, 10);
 
+        let seek_bar_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        let seek_bar_adj = gtk::Adjustment::new(100.0, 0.0, 100.0, 1.0, 10.0, 0.0);
+        let seek_bar = gtk::Scale::new(gtk::Orientation::Horizontal, Some(&seek_bar_adj));
+        seek_bar.set_draw_value(false);
+
+        let controll_button_box = gtk::Box::new(gtk::Orientation::Horizontal, 2);
+        controll_button_box.set_halign(gtk::Align::Center);
+
+        let prev_button = gtk::Button::new_with_label("<<");
+        let stop_button = gtk::Button::new_with_label("||");
+        let play_button = gtk::Button::new_with_label("|>");
+        let next_button = gtk::Button::new_with_label(">>");
+
+        controll_button_box.pack_start(&prev_button,  false, false, 2);
+        controll_button_box.pack_start(&stop_button,  false, false, 2);
+        controll_button_box.pack_start(&play_button,  false, false, 2);
+        controll_button_box.pack_start(&next_button,  false, false, 2);
+
+        // let play_time   = gtk::Label::new();
+
+        seek_bar_box.pack_start(&seek_bar, true, true, 0);
+
+        header.pack_start(&seek_bar_box,  true, true, 2);
+        header.pack_start(&controll_button_box, false, false, 2);
+
+        return header;
+    }
+
+    fn get_playlist_store(playlistinfo: Vec<std::collections::HashMap<String, String>>) -> gtk::ListStore {
         let column_types   = [gtk::Type::String, gtk::Type::String, gtk::Type::String];
-        let playlist_view  = gtk::TreeView::new();
         let playlist_store = gtk::ListStore::new(&column_types);
-
-        let title_column_num  = 0;
-        let artist_column_num = 1;
-        let album_column_num  = 2;
-
-        let title_column  = self.get_new_column("Title", title_column_num);
-        let artist_column = self.get_new_column("Artist", artist_column_num);
-        let album_column  = self.get_new_column("Album", album_column_num);
-
-        playlist_view.append_column(&title_column);
-        playlist_view.append_column(&artist_column);
-        playlist_view.append_column(&album_column);
 
         for info in playlistinfo {
             let title = match info.get("Title") {
-                None        => self.to_only_filename(info.get("file").unwrap()).to_value() as gtk::Value,
+                None        => MainWindow::to_only_filename(info.get("file").unwrap()).to_value() as gtk::Value,
                 Some(title) => title.to_value() as gtk::Value,
             };
             let artist = match info.get("Artist") {
@@ -106,27 +124,64 @@ impl MainWindow {
 
             playlist_store.insert_with_values(
                 Some(0),
-                &[title_column_num, artist_column_num, album_column_num],
+                &[0,1,2],
                 &[&title, &artist, &album]);
         }
 
+        return playlist_store;
+    }
+
+    fn get_playlist_window(&self) -> gtk::ScrolledWindow {
+        let mut mpd = self.mpd.lock().unwrap();
+        let mut playlistinfo   = mpd.playlistinfo("");
+        drop(mpd);
+        playlistinfo.reverse();
+
+        let playlist_view  = gtk::TreeView::new();
+        let playlist_store = MainWindow::get_playlist_store(playlistinfo);
+
+        let title_column_num  = 0;
+        let artist_column_num = 1;
+        let album_column_num  = 2;
+
+        let title_column  = self.get_new_column("Title", title_column_num);
+        let artist_column = self.get_new_column("Artist", artist_column_num);
+        let album_column  = self.get_new_column("Album", album_column_num);
+
+        playlist_view.append_column(&title_column);
+        playlist_view.append_column(&artist_column);
+        playlist_view.append_column(&album_column);
+
         playlist_view.set_model(Some(&playlist_store));
+        playlist_view.set_enable_search(false);
         playlist_view.get_selection().set_mode(gtk::SelectionMode::Multiple);
 
-        playlist_view.connect_key_press_event(|widget,event_key| {
+
+        let locked_mpd = self.mpd.lock().unwrap();
+        let mpd = locked_mpd.clone();
+        playlist_view.connect_key_press_event(move |widget,event_key| {
+            // TODO: more better than that way.
+            let mpd = mpd.clone();
             match event_key.get_keyval() as u32 {
                 65535 => {  // Delete key
-                    let (paths, model) = widget.get_selection().get_selected_rows();
+                    let (paths, _) = widget.get_selection().get_selected_rows();
+                    let mut gap = 0;  // gap of deleting song in playlist(To move forward under the song).
                     for path in paths {
                         for index in path.get_indices() {
-                            println!("asd: {}", index);
+                            mpd.delete(&(index-gap).to_string());
+                            gap += 1;
                         }
                     }
+                    let mut playlistinfo = mpd.playlistinfo("");
+                    playlistinfo.reverse();
+                    let playlist_store = MainWindow::get_playlist_store(playlistinfo);
+                    widget.set_model(Some(&playlist_store));
                 },
                 _     => println!("Other keyval"),
             }
             gtk::prelude::Inhibit(false)
         });
+        drop(locked_mpd);
 
         let scroll = gtk::ScrolledWindow::new(None, None);
         scroll.add(&playlist_view);
@@ -135,7 +190,7 @@ impl MainWindow {
     }
 
     fn set_all_cover(&self, container: &gtk::FlowBox) {
-        let mut mpd = self.mpd.lock().unwrap();
+        let  mpd = self.mpd.lock().unwrap();
         // TODO May be different of behavior windows and linux
         let home = std::env::home_dir().unwrap().into_os_string().into_string().unwrap();
 
@@ -170,20 +225,20 @@ impl MainWindow {
     }
 
     fn get_inside_of_dir(&self, path: &String, outside_iter: &gtk::TreeIter, store: &gtk::TreeStore) {
-        let mut mpd = self.mpd.lock().unwrap();
+        let  mpd = self.mpd.lock().unwrap();
         let lsinfo = mpd.ls(&path);
         drop(mpd);
         for ls in lsinfo {
             if ls.contains_key("directory") {
                 let full_dirname = ls.get("directory").unwrap();
-                let dirname = self.to_only_filename(full_dirname);
+                let dirname = MainWindow::to_only_filename(full_dirname);
 
                 let iter = store.insert_with_values(Some(&outside_iter), None, &[0], &[&dirname]);
 
                 self.get_inside_of_dir(full_dirname, &iter, &store);
             } else if ls.contains_key("file") {
                 let title = match ls.get("Title") {
-                    None        => self.to_only_filename(ls.get("file").unwrap()).to_value() as gtk::Value,
+                    None        => MainWindow::to_only_filename(ls.get("file").unwrap()).to_value() as gtk::Value,
                     Some(title) => title.to_value() as gtk::Value,
                 };
                 let artist = match ls.get("Artist") {
@@ -224,14 +279,14 @@ impl MainWindow {
         for ls in lsinfo {
             if ls.contains_key("directory") {
                 let full_dirname = ls.get("directory").unwrap();
-                let dirname = self.to_only_filename(full_dirname);
+                let dirname = MainWindow::to_only_filename(full_dirname);
 
                 let iter = dir_store.insert_with_values(None, None, &[0], &[&dirname]);
 
                 self.get_inside_of_dir(full_dirname, &iter, &dir_store);
             } else if ls.contains_key("file") {
                 let title = match ls.get("Title") {
-                    None        => self.to_only_filename(ls.get("file").unwrap()).to_value() as gtk::Value,
+                    None        => MainWindow::to_only_filename(ls.get("file").unwrap()).to_value() as gtk::Value,
                     Some(title) => title.to_value() as gtk::Value,
                 };
                 let artist = match ls.get("Artist") {
