@@ -66,6 +66,11 @@ impl MPDQuery {
         return ret;
     }
 
+    pub fn status(&self) -> HashMap<String, String> {
+        let buf = self.do_cmd(format!("status\n"));
+        return self.mpdbuf_to_vec(buf).pop().unwrap();
+    }
+
     pub fn delete(&self, songpos: &str){
         // TODO: catch Exeption and return error or expect
         let _ = self.do_cmd(format!("delete \"{}\"\n", songpos));
