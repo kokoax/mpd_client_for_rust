@@ -74,12 +74,14 @@ impl MainWindow {
     }
 
     fn get_header(&self) -> gtk::Box {
-        let header = gtk::Box::new(gtk::Orientation::Vertical, 10);
+        let header = gtk::Box::new(gtk::Orientation::Horizontal, 10);
 
         let seek_bar_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let seek_bar_adj = gtk::Adjustment::new(100.0, 0.0, 100.0, 1.0, 10.0, 0.0);
-        let seek_bar = gtk::Scale::new(gtk::Orientation::Horizontal, Some(&seek_bar_adj));
-        seek_bar.set_draw_value(false);
+        let seek_bar = gtk::ProgressBar::new();
+        // seek_bar.set_draw_value(false);
+        seek_bar.set_fraction(0.3);
+        // seek_bar.set_pulse_step(0.5);
 
         let controll_button_box = gtk::Box::new(gtk::Orientation::Horizontal, 2);
         controll_button_box.set_halign(gtk::Align::Center);
@@ -100,6 +102,26 @@ impl MainWindow {
 
         header.pack_start(&seek_bar_box,  true, true, 2);
         header.pack_start(&controll_button_box, false, false, 2);
+
+        let locked_mpd  = self.mpd.lock().unwrap();
+        let mpd_timeout = locked_mpd.clone();
+        gtk::timeout_add_seconds(1, move || {
+            let mut mpd = mpd_timeout.clone();
+            let seek_bar = seek_bar.clone();
+            let time_buf = mpd.status();
+            let time_buf: Vec<&str> = time_buf.get("time")
+                .unwrap()
+                .split(":")
+                .collect();
+            let time_buf: Vec<f64> = time_buf.into_iter()
+                .map(|item| item.parse::<f64>().unwrap()).collect();
+
+            let time = time_buf[0] / time_buf[1];
+            seek_bar.set_fraction(time);
+
+            gtk::Continue(true)
+        });
+        drop(locked_mpd);
 
         return header;
     }
