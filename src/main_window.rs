@@ -223,15 +223,15 @@ impl MainWindow {
 
     fn set_all_cover(&self, container: &gtk::FlowBox) {
         let  mpd = self.mpd.lock().unwrap();
+        let album_array = mpd.list("Album");
+        drop(mpd);
         // TODO May be different of behavior windows and linux
         let home = std::env::home_dir().unwrap().into_os_string().into_string().unwrap();
 
+        println!("album_len: {}", album_array.len());
         let noimage_path = format!("{}/.cache/mpd_client/cover/noimage.png", home);
-        let album_array = mpd.list("Album");
-        drop(mpd);
         let album_cover_paths: Vec<String> = album_array.into_iter()
             .map(|item| format!("{}/.cache/mpd_client/cover/{}.png", home, item)).collect();
-
         for filepath in album_cover_paths {
             let pixbuf = match gdk_pixbuf::Pixbuf::new_from_file_at_size(&filepath, 150, 150) {
                 Ok(pixbuf) => pixbuf,
@@ -249,6 +249,13 @@ impl MainWindow {
         flow.set_row_spacing(20);
 
         self.set_all_cover(&flow);
+
+        flow.connect_child_activated(|flowbox, flowbox_child| {
+            println!("children per line: {}", flowbox.get_column_spacing());
+        });
+
+        let label = gtk::Label::new("ASd");
+        flow.insert(&label, 5);
 
         let scroll = gtk::ScrolledWindow::new(None, None);
         scroll.add(&flow);
