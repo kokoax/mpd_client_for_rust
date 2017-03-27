@@ -247,18 +247,36 @@ impl MainWindow {
         flow.set_valign(gtk::Align::Start);
         flow.set_column_spacing(20);
         flow.set_row_spacing(20);
-
         self.set_all_cover(&flow);
 
-        flow.connect_child_activated(|flowbox, flowbox_child| {
-            println!("children per line: {}", flowbox.get_column_spacing());
+        println!("Stack");
+        /* Stack */
+        let stack = gtk::Stack::new();
+        stack.set_transition_type(gtk::StackTransitionType::SlideLeft);
+
+        println!("StackSideBar");
+        /* StackSidebar */
+        let stack_sidebar = gtk::StackSidebar::new();
+        stack_sidebar.set_stack(&stack);
+
+        println!("Stack Inner");
+        /* Stack inner */
+        let label = gtk::Label::new("Music");
+        stack.add_named(&flow,  "albumlist");
+        stack.add_named(&label, "musiclist");
+
+        let flow_stack = stack.clone();
+        flow.connect_child_activated(move |flowbox, flowbox_child| {
+            let stack = flow_stack.clone();
+            let child = stack.get_child_by_name("musiclist").unwrap();
+            stack.set_visible_child(&child);
+            child.show();
+            println!("change album window");
         });
 
-        let label = gtk::Label::new("ASd");
-        flow.insert(&label, 5);
-
         let scroll = gtk::ScrolledWindow::new(None, None);
-        scroll.add(&flow);
+        // scroll.add(&flow);
+        scroll.add(&stack);
 
         return scroll;
     }
@@ -419,5 +437,5 @@ impl MainWindow {
 
         return primary_box;
     }
-}
+    }
 
